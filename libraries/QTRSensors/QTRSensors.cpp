@@ -326,7 +326,7 @@ int QTRSensors::readLine(unsigned int *sensor_values,
 
     for(i=0;i<_numSensors;i++) {
         int value = sensor_values[i];
-        if(white_line)
+        //if(white_line)
             value = 1000-value;
 
         // keep track of whether we see the line at all

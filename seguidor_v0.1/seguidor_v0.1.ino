@@ -13,7 +13,7 @@ unsigned int sensorValues[NUM_SENSORS];
 // H-bridge pins (Defines the velocity)
 int pwm_a = 10;   //PWM motor 1 
 int pwm_b = 5;    //PWM motor 2
-
+int VEL = 100; // Constante que atualizará a velocidade dos motores
 int in1 = 9;
 int in2 = 8;
 int in3 = 7;
@@ -132,7 +132,7 @@ void setup()
 
 void loop()
 {
-    unsigned int line_position = qtrrc.readLine(sensorValues, QTR_EMITTERS_ON, 1);
+    unsigned int line_position = qtrrc.readLine(sensorValues);
 
     // ------------------------------------- //
     //          Obstacle detection           //
@@ -278,8 +278,10 @@ void follow_line(int line_position, boolean is_slow)
             digitalWrite(in3, HIGH);
             digitalWrite(in4, LOW);
         
-            analogWrite(pwm_a, 120);
-            analogWrite(pwm_b, 120);
+           // analogWrite(pwm_a, 120);
+            //analogWrite(pwm_b, 120);
+             analogWrite(pwm_a, 0);  //Para ele parar quando todos os sensores estiverem fora da linha
+            analogWrite(pwm_b, 0);   //Para ele parar quando todos os sensores estiverem fora da linha
             Serial.println("Rotate Left/n");
         break;
         
@@ -312,30 +314,35 @@ void follow_line(int line_position, boolean is_slow)
             // direita. Se for um número negativo, o robot irá virar para a esquerda
             // e a magnetude dos números determinam a agudez com que fará as curvas/giros
             //+ (integral * 0.0001)
-            PV = (proportional * 0.1) + (integral * 0.0001) + derivative * 2;
+            
+            PV = proportional/3 + integral/10000 + derivative*12/2;
+            
+           // PV = (proportional * 0.1) + (integral * 0.0001) + derivative * 2;
             
             //+ derivative * 1;
             
             //this codes limits the PV (motor speed pwm value)
-            if (PV > 150) {
-                PV = 150;
+            if (PV > VEL) {
+                PV = VEL;
             }
             
-            if (PV < -150) {
-                PV = -150;
+            if (PV < -VEL) {
+                PV = -VEL;
             }
             
-            m1_speed = 50 - PV;
-            m2_speed = 50 + PV;
+            m1_speed = 50 + PV;
+            m2_speed = 50 -   PV;
             
             //set motor speeds and dire ction
-            analogWrite(pwm_a, m1_speed);
-            analogWrite(pwm_b, m2_speed);
+          
             
             digitalWrite(in1, LOW);
             digitalWrite(in2, HIGH);
             digitalWrite(in3, LOW);
             digitalWrite(in4, HIGH);
+            
+            analogWrite(pwm_a, m1_speed);
+            analogWrite(pwm_b, m2_speed);
         break;
     }
 }
