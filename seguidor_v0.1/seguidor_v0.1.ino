@@ -10,6 +10,9 @@ QTRSensorsRC qtrrc((unsigned char[]) {
 }, NUM_SENSORS, TIMEOUT, EMITTER_PIN);
 unsigned int sensorValues[NUM_SENSORS];
 
+int led_left = 38;
+int led_right = 40;
+
 // H-bridge pins (Defines the velocity)
 int pwm_a = 10;   //PWM motor 1 
 int pwm_b = 5;    //PWM motor 2
@@ -39,20 +42,24 @@ int samples = 0;
 
 int alert_obstacle = 0;
 
-#define ROW 4
-#define COLUMN 8
+#define ROW 6
+#define COLUMN 10
 
-#define BLACK_SQUARE_MIDDLE   0
-#define BLACK_EMPTY_SPACE     1
-#define WHITE_SQUARE_RIGHT    2
-#define WHITE_SQUARE_LEFT     3
+#define BLACK_SQUARE_MIDDLE     0
+#define BLACK_EMPTY_SPACE       1
+#define WHITE_SQUARE_RIGHT_0    2
+#define WHITE_SQUARE_RIGHT_1    3
+#define WHITE_SQUARE_LEFT_0     4
+#define WHITE_SQUARE_LEFT_1     5
 
 int obstacle_matrix [ROW][COLUMN] =
   {
-    {0, 0, 0, 1000, 1000, 0, 0, 0},                   //black_square_in_middle
-    {1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000}, //black_empty_space
-    {1000, 1000, 1000, 0, 0, 1000, 1000, 0},          //white_square_right
-    {0, 1000, 1000, 0, 0, 1000, 1000, 1000}           //white_square_left
+    {   0,    0,    0,    0, 1000, 1000,    0,    0,    0,    0},     //black_square_in_middle
+    {1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000},     //black_empty_space
+    {1000, 1000, 1000,  500,    0,    0,  500, 1000, 1000,    0},     //white_square_right
+    {1000, 1000, 1000,  500,    0,    0,  500, 1000,    0,    0},     //white_square_right
+    {   0, 1000, 1000,  500,    0,    0,  500, 1000, 1000, 1000},      //white_square_left
+    {   0,    0, 1000,  500,    0,    0,  500, 1000, 1000, 1000}      //white_square_left
 };
 
 #define STATE_FOLLOW_LINE                   0
@@ -75,9 +82,9 @@ void setup()
     pinMode(in2, OUTPUT);
     pinMode(in3, OUTPUT);
     pinMode(in4, OUTPUT);
-    
-    analogWrite(pwm_a, 100);  // (100/255) = 39% speed
-    analogWrite(pwm_b, 100);
+
+    pinMode(led_left, INPUT);
+    pinMode(led_right, INPUT);
     
     Serial.begin(9600);
     
@@ -93,7 +100,7 @@ void setup()
     
     int cicle_count = 0;
     
-    for (int i = 0; i < 200; i++)   // make the calibration take about 10 seconds
+    for (int i = 0; i < 300; i++)   // make the calibration take about 10 seconds
     {
         
         if (cicle_count >= change_led_status) {
@@ -139,6 +146,12 @@ void loop()
     // ------------------------------------- //
 
     int obstacle_detected = detect_obstacle();
+
+    Serial.print("Obstacle detection: ");
+    Serial.println(obstacle_detected);
+    Serial.println();
+    Serial.println();
+    
     if(obstacle_detected == BLACK_SQUARE_MIDDLE){
       current_state = STATE_FOLLOW_LINE;
       alert_obstacle = 80;
@@ -148,12 +161,12 @@ void loop()
         current_state = STATE_STOP_10;
       }
     }
-    else if(obstacle_detected == WHITE_SQUARE_RIGHT){
+    else if(obstacle_detected == WHITE_SQUARE_RIGHT_0 || obstacle_detected == WHITE_SQUARE_RIGHT_1){
       if(current_state == STATE_FOLLOW_LINE){
         current_state = STATE_CURVE_RIGHT;
       }
     }
-    else if(obstacle_detected == WHITE_SQUARE_LEFT){
+    else if(obstacle_detected == WHITE_SQUARE_LEFT_0 || obstacle_detected == WHITE_SQUARE_LEFT_1){
       if(current_state == STATE_FOLLOW_LINE){
         current_state = STATE_CURVE_LEFT;
       }
@@ -187,9 +200,13 @@ void loop()
     }
     else if(current_state == STATE_CURVE_RIGHT){
       //todo: go to right until find line
+      Serial.println("State CURVE RIGHT");
+      current_state = STATE_FOLLOW_LINE;
     }
     else if(current_state == STATE_CURVE_LEFT){
       //todo: go to left until find line
+      Serial.println("State CURVE LEFT");
+      current_state = STATE_FOLLOW_LINE;
     }
     else{
       if(alert_obstacle > 0){
@@ -199,8 +216,11 @@ void loop()
         follow_line(line_position, false);
       } 
     }
+
+    Serial.print("Current State: ");
+    Serial.println(current_state);
     
-    delay(10);
+    delay(200);
     
     if(alert_obstacle > 0){
         --alert_obstacle;
@@ -210,22 +230,49 @@ void loop()
 
 
 int detect_obstacle(){
+  // Initialize the vector with 100% difference
   int result[ROW];
   for(int i = 0; i < ROW; i++){
     result[i] = 100;
   }
+
+  int sensorValuesWithLateral[COLUMN];
+  int i2 = 7;
+  for(int i = 1; i < COLUMN - 1; i++){
+    sensorValuesWithLateral[i] = sensorValues[i2];
+    i2--;
+  }
+  
+  sensorValuesWithLateral[0] = digitalRead(led_left) * 1000;
+  sensorValuesWithLateral[COLUMN - 1] = digitalRead(led_right) * 1000;
 
   long avg = 0;
 
   for (int i = 0; i < ROW; i++){
     avg = 0;
     for (int j = 0; j < COLUMN; j++){
-      int v1 = obstacle_matrix[i][j] - sensorValues[j];
+      int v1 = obstacle_matrix[i][j] - sensorValuesWithLateral[j];
       int abs_v1 = abs(v1);
       avg += (abs_v1 / 10);
     }
     result[i] = (avg / COLUMN);
   }
+
+  Serial.println("Sensor values:");
+  for(int i = 0; i < COLUMN; i++){
+    Serial.print(sensorValuesWithLateral[i]);
+    Serial.print(" ");
+  }
+  Serial.println();
+
+  Serial.println("Detected values:");
+  for(int i = 0; i < ROW; i++){
+    Serial.print(i);
+    Serial.print(") ");
+    Serial.print(result[i]);
+    Serial.print(", ");
+  }
+  Serial.println();
 
   int treshold = 15; // 100 - 15 = 75% of similarity
   int best_val = 9999;
@@ -329,9 +376,16 @@ void follow_line(int line_position, boolean is_slow)
             if (PV < -VEL) {
                 PV = -VEL;
             }
-            
-            m1_speed = 50 + PV;
-            m2_speed = 50 -   PV;
+
+            // TODO: TEST THIS, MAYBE SLOW VALUES RESULT IN NEVATIVE SPEED!!!
+            if(is_slow){
+              m1_speed = 25 + PV;
+              m2_speed = 25 - PV;            
+            }
+            else{
+              m1_speed = 50 + PV;
+              m2_speed = 50 - PV;
+            }
             
             //set motor speeds and dire ction
           
