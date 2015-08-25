@@ -58,7 +58,7 @@ int obstacle_matrix [ROW][COLUMN] =
     {1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000},     //black_empty_space
     {1000, 1000, 1000,  500,    0,    0,  500, 1000, 1000,    0},     //white_square_right
     {1000, 1000, 1000,  500,    0,    0,  500, 1000,    0,    0},     //white_square_right
-    {   0, 1000, 1000,  500,    0,    0,  500, 1000, 1000, 1000},      //white_square_left
+    {   0, 1000, 1000,  500,    0,    0,  500, 1000, 1000, 1000},     //white_square_left
     {   0,    0, 1000,  500,    0,    0,  500, 1000, 1000, 1000}      //white_square_left
 };
 
@@ -69,6 +69,8 @@ int obstacle_matrix [ROW][COLUMN] =
 #define STATE_FORWARD_UNTIL_LINE_IS_FOUND   4
 
 int current_state = 0;
+int obstacle_loop_counter = 0;
+int obstacle_detected = -1;
 
 void setup()
 {
@@ -102,7 +104,6 @@ void setup()
     
     for (int i = 0; i < 300; i++)   // make the calibration take about 10 seconds
     {
-        
         if (cicle_count >= change_led_status) {
             digitalWrite(13, !digitalRead(13));
             cicle_count = 0;
@@ -115,6 +116,7 @@ void setup()
     digitalWrite(13, LOW);          // turn off Arduino's LED to indicate we are through with calibration
     
     // print the calibration minimum values measured when emitters were on
+    /*
     Serial.println("nSensor min values:");
     for (int i = 0; i < NUM_SENSORS; i++)
     {
@@ -132,6 +134,7 @@ void setup()
     }
     Serial.println();
     Serial.println();
+    */
     Serial.println("Calibration Complete");
     delay(1000);
     
@@ -145,7 +148,15 @@ void loop()
     //          Obstacle detection           //
     // ------------------------------------- //
 
-    int obstacle_detected = detect_obstacle();
+    // Check if there are obstacles every 2 cicles
+    if(obstacle_loop_counter > 1){
+        obstacle_detected = detect_obstacle();
+        obstacle_loop_counter = 0;
+    }
+    else{
+        obstacle_detected = -1;
+        obstacle_loop_counter++;
+    }
 
     Serial.print("Obstacle detection: ");
     Serial.println(obstacle_detected);
@@ -153,23 +164,23 @@ void loop()
     Serial.println();
     
     if(obstacle_detected == BLACK_SQUARE_MIDDLE){
-      current_state = STATE_FOLLOW_LINE;
-      alert_obstacle = 80;
+        current_state = STATE_FOLLOW_LINE;
+        alert_obstacle = 80;
     }
     else if(obstacle_detected == BLACK_EMPTY_SPACE){
-      if(current_state == STATE_FOLLOW_LINE){
-        current_state = STATE_STOP_10;
-      }
+        if(current_state == STATE_FOLLOW_LINE){
+            current_state = STATE_STOP_10;
+        }
     }
     else if(obstacle_detected == WHITE_SQUARE_RIGHT_0 || obstacle_detected == WHITE_SQUARE_RIGHT_1){
-      if(current_state == STATE_FOLLOW_LINE){
-        current_state = STATE_CURVE_RIGHT;
-      }
+        if(current_state == STATE_FOLLOW_LINE){
+            current_state = STATE_CURVE_RIGHT;
+        }
     }
     else if(obstacle_detected == WHITE_SQUARE_LEFT_0 || obstacle_detected == WHITE_SQUARE_LEFT_1){
-      if(current_state == STATE_FOLLOW_LINE){
-        current_state = STATE_CURVE_LEFT;
-      }
+        if(current_state == STATE_FOLLOW_LINE){
+            current_state = STATE_CURVE_LEFT;
+        }
     }
 
     // ------------------------------------- //
@@ -177,50 +188,51 @@ void loop()
     // ------------------------------------- //
     
     if(current_state == STATE_STOP_10){
-      // Stops approx 10 seconds and then go forward
-      
-      analogWrite(pwm_a, 10);
-      analogWrite(pwm_b, 10);
-      delay(100); 
-      
-      for (int i = 0; i < 400; i++){
-        analogWrite(pwm_a, 0);
-        analogWrite(pwm_b, 0);
-        delay(10); 
-      }
-
-      current_state = STATE_FORWARD_UNTIL_LINE_IS_FOUND;
+        // Stops approx 10 seconds and then go forward
+        
+        analogWrite(pwm_a, 10);
+        analogWrite(pwm_b, 10);
+        delay(100); 
+        
+        for (int i = 0; i < 400; i++){
+            analogWrite(pwm_a, 0);
+            analogWrite(pwm_b, 0);
+            delay(10); 
+        }
+  
+        current_state = STATE_FORWARD_UNTIL_LINE_IS_FOUND;
     }
     else if(current_state == STATE_FORWARD_UNTIL_LINE_IS_FOUND){
-      analogWrite(pwm_a, 100);
-      analogWrite(pwm_b, 100);
-      if(line_position > 0 && line_position < 7000){
-        current_state = STATE_FOLLOW_LINE;
-      }
+        analogWrite(pwm_a, 100);
+        analogWrite(pwm_b, 100);
+        if(line_position > 0 && line_position < 7000){
+            current_state = STATE_FOLLOW_LINE;
+        }
     }
     else if(current_state == STATE_CURVE_RIGHT){
-      //todo: go to right until find line
-      Serial.println("State CURVE RIGHT");
-      current_state = STATE_FOLLOW_LINE;
+        //todo: go to right until find line
+        Serial.println("State CURVE RIGHT");
+        current_state = STATE_FOLLOW_LINE;
     }
     else if(current_state == STATE_CURVE_LEFT){
-      //todo: go to left until find line
-      Serial.println("State CURVE LEFT");
-      current_state = STATE_FOLLOW_LINE;
+        //todo: go to left until find line
+        Serial.println("State CURVE LEFT");
+        current_state = STATE_FOLLOW_LINE;
     }
     else{
-      if(alert_obstacle > 0){
-        follow_line(line_position, true);
-      }
-      else{
-        follow_line(line_position, false);
-      } 
+        //todo: Make the car go slower when alert_obstacle its greater than 0
+        if(alert_obstacle > 0){
+            follow_line(line_position);
+        }
+        else{
+            follow_line(line_position);
+        } 
     }
 
     Serial.print("Current State: ");
     Serial.println(current_state);
     
-    delay(200);
+    delay(10);
     
     if(alert_obstacle > 0){
         --alert_obstacle;
@@ -230,61 +242,63 @@ void loop()
 
 
 int detect_obstacle(){
-  // Initialize the vector with 100% difference
-  int result[ROW];
-  for(int i = 0; i < ROW; i++){
-    result[i] = 100;
-  }
+    // Initialize the vector with 100% difference
+    int result[ROW];
+    for(int i = 0; i < ROW; i++){
+        result[i] = 100;
+    }
 
-  int sensorValuesWithLateral[COLUMN];
-  int i2 = 7;
-  for(int i = 1; i < COLUMN - 1; i++){
-    sensorValuesWithLateral[i] = sensorValues[i2];
-    i2--;
-  }
+    int sensorValuesWithLateral[COLUMN];
+    int i2 = 7;
+    for(int i = 1; i < COLUMN - 1; i++){
+        sensorValuesWithLateral[i] = sensorValues[i2];
+        i2--;
+    }
   
-  sensorValuesWithLateral[0] = digitalRead(led_left) * 1000;
-  sensorValuesWithLateral[COLUMN - 1] = digitalRead(led_right) * 1000;
+    sensorValuesWithLateral[0] = digitalRead(led_left) * 1000;
+    sensorValuesWithLateral[COLUMN - 1] = digitalRead(led_right) * 1000;
 
-  long avg = 0;
+    long avg = 0;
 
-  for (int i = 0; i < ROW; i++){
-    avg = 0;
-    for (int j = 0; j < COLUMN; j++){
-      int v1 = obstacle_matrix[i][j] - sensorValuesWithLateral[j];
-      int abs_v1 = abs(v1);
-      avg += (abs_v1 / 10);
+    for (int i = 0; i < ROW; i++){
+        avg = 0;
+        for (int j = 0; j < COLUMN; j++){
+            int v1 = obstacle_matrix[i][j] - sensorValuesWithLateral[j];
+            int abs_v1 = abs(v1);
+            avg += (abs_v1 / 10);
+        }
+        result[i] = (avg / COLUMN);
     }
-    result[i] = (avg / COLUMN);
-  }
 
-  Serial.println("Sensor values:");
-  for(int i = 0; i < COLUMN; i++){
-    Serial.print(sensorValuesWithLateral[i]);
-    Serial.print(" ");
-  }
-  Serial.println();
-
-  Serial.println("Detected values:");
-  for(int i = 0; i < ROW; i++){
-    Serial.print(i);
-    Serial.print(") ");
-    Serial.print(result[i]);
-    Serial.print(", ");
-  }
-  Serial.println();
-
-  int treshold = 15; // 100 - 15 = 75% of similarity
-  int best_val = 9999;
-  int best_pos = -1;
-  for(int i = 0; i < ROW; i++){
-    if(result[i] < best_val && result[i] < treshold){
-        best_pos = i;
-        best_val = result[i];
+    /*
+    Serial.println("Sensor values:");
+    for(int i = 0; i < COLUMN; i++){
+        Serial.print(sensorValuesWithLateral[i]);
+        Serial.print(" ");
     }
-  }
+    Serial.println();
 
-  return best_pos;
+    Serial.println("Detected values:");
+    for(int i = 0; i < ROW; i++){
+        Serial.print(i);
+        Serial.print(") ");
+        Serial.print(result[i]);
+        Serial.print(", ");
+    }
+    Serial.println();
+    */
+
+    int treshold = 15; // 100 - 15 = 75% of similarity
+    int best_val = 9999;
+    int best_pos = -1;
+    for(int i = 0; i < ROW; i++){
+        if(result[i] < best_val && result[i] < treshold){
+            best_pos = i;
+            best_val = result[i];
+        }
+    }
+
+    return best_pos;
 }
 
 int detect_black_obstacle(){
@@ -315,8 +329,7 @@ int detect_black_obstacle(){
     }
 }
 
-void follow_line(int line_position, boolean is_slow)
-{
+void follow_line(int line_position) {
     switch (line_position) {
         // Line has moved off the left edge of sensor
         case 0:
@@ -324,11 +337,9 @@ void follow_line(int line_position, boolean is_slow)
             digitalWrite(in2, HIGH);
             digitalWrite(in3, HIGH);
             digitalWrite(in4, LOW);
-        
-           // analogWrite(pwm_a, 120);
-            //analogWrite(pwm_b, 120);
-             analogWrite(pwm_a, 0);  //Para ele parar quando todos os sensores estiverem fora da linha
-            analogWrite(pwm_b, 0);   //Para ele parar quando todos os sensores estiverem fora da linha
+       
+            analogWrite(pwm_a, 0);
+            analogWrite(pwm_b, 0);
             Serial.println("Rotate Left/n");
         break;
         
@@ -339,15 +350,18 @@ void follow_line(int line_position, boolean is_slow)
             digitalWrite(in3, LOW);
             digitalWrite(in4, HIGH);
         
-            analogWrite(pwm_a, 120);
-            analogWrite(pwm_b, 120);
+            analogWrite(pwm_a, 0);
+            analogWrite(pwm_b, 0);
             Serial.println("Rotate Right/n");
         break;
-        
+
         default:
+            // Obtém a posição da linha
+            // Aqui não estamos interessados nos valores individuais de cada sensor
+
             // O termo proporcional deve ser 0 quando estamos na linha
             int proportional = ((int)line_position) - 3500;
-            
+    
             // Calcula o termo derivativo (mudança) e o termo integral (soma)
             // da posição
             int derivative = proportional - last_proportional;
@@ -357,44 +371,28 @@ void follow_line(int line_position, boolean is_slow)
             last_proportional = proportional;
             
             // Calcula a diferença entre o aranjo de potência dos dois motores
-            // m1 - m2. Se for um número positivo, o robot irá virar para a
+            // m1 - m2. Se for um número positivo, o robot irá virar para a 
             // direita. Se for um número negativo, o robot irá virar para a esquerda
             // e a magnetude dos números determinam a agudez com que fará as curvas/giros
-            //+ (integral * 0.0001)
-            
             PV = proportional/3 + integral/10000 + derivative*12/2;
-            
-           // PV = (proportional * 0.1) + (integral * 0.0001) + derivative * 2;
-            
-            //+ derivative * 1;
-            
+      
             //this codes limits the PV (motor speed pwm value)
-            if (PV > VEL) {
+            if (PV > VEL){
                 PV = VEL;
             }
-            
-            if (PV < -VEL) {
+      
+            if (PV < -VEL){
                 PV = -VEL;
             }
-
-            // TODO: TEST THIS, MAYBE SLOW VALUES RESULT IN NEVATIVE SPEED!!!
-            if(is_slow){
-              m1_speed = 25 + PV;
-              m2_speed = 25 - PV;            
-            }
-            else{
-              m1_speed = 50 + PV;
-              m2_speed = 50 - PV;
-            }
-            
-            //set motor speeds and dire ction
-          
-            
+      
+            m1_speed = VEL+PV;
+            m2_speed = VEL-PV;
+      
+            //set motor speeds and direction
             digitalWrite(in1, LOW);
             digitalWrite(in2, HIGH);
             digitalWrite(in3, LOW);
-            digitalWrite(in4, HIGH);
-            
+            digitalWrite(in4, HIGH); 
             analogWrite(pwm_a, m1_speed);
             analogWrite(pwm_b, m2_speed);
         break;
